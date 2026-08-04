@@ -11,6 +11,13 @@ inputs:
   policy_path:
     description: 'Repository-relative path to a private caller-owned review policy'
     required: false
+  previous_review_run_path:
+    description: 'Repository-relative path to a trusted exact-SHA initial ReviewRun JSON artifact'
+    required: false
+  publish_review_comment:
+    description: 'Publish the managed Action review body to the pull request timeline'
+    required: false
+    default: 'true'
   gitnexus_version:
     description: 'Permitted GitNexus version; only 1.6.9 is accepted by this release'
     required: false

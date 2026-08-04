@@ -147027,7 +147027,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.robot = exports.eventMatchesMode = void 0;
+exports.robot = exports.eventMatchesMode = exports.publishReviewRun = void 0;
 const minimatch_1 = __nccwpck_require__(4501);
 const loglevel_1 = __importDefault(__nccwpck_require__(78063));
 const chat_js_1 = __nccwpck_require__(85365);
@@ -147035,6 +147035,7 @@ const config_js_1 = __nccwpck_require__(96373);
 const evidence_js_1 = __nccwpck_require__(76607);
 const gitnexus_js_1 = __nccwpck_require__(54770);
 const policy_js_1 = __nccwpck_require__(22601);
+const previous_review_js_1 = __nccwpck_require__(25775);
 const review_engine_js_1 = __nccwpck_require__(73161);
 const report_js_1 = __nccwpck_require__(72396);
 const OPENAI_API_KEY = 'OPENAI_API_KEY';
@@ -147146,9 +147147,15 @@ const loadReviewFiles = async (context, headSha, baseSha, maxPatchLength) => {
     }
     return { files, unreviewedFiles };
 };
-const loadPreviousContext = async (context) => {
+const loadPreviousContext = async (context, previousReviewRunPath, headSha) => {
     const repo = context.repo();
     const pullNumber = context.pullRequest().pull_number;
+    const repository = `${repo.owner}/${repo.repo}`;
+    const artifactRun = await (0, previous_review_js_1.loadPreviousReviewRun)(previousReviewRunPath, {
+        repository,
+        pullRequest: pullNumber,
+        headSha,
+    });
     const reviews = (await context.octokit.paginate(context.octokit.pulls.listReviews, {
         ...repo,
         pull_number: pullNumber,
@@ -147159,19 +147166,27 @@ const loadPreviousContext = async (context) => {
         .reverse()
         .map((review) => ({ review, run: (0, report_js_1.parseReviewRunMarker)(review.body) }))
         .find(({ run }) => run?.mode === 'initial');
-    if (!initialReview?.run)
+    const previousRun = artifactRun || initialReview?.run;
+    if (!previousRun)
         return { developerComments: [] };
     const comments = (await context.octokit.paginate(context.octokit.issues.listComments, {
         ...repo,
         issue_number: pullNumber,
         per_page: 100,
     }));
-    const submittedAt = Date.parse(initialReview.review.submitted_at || initialReview.run.completedAt);
+    const submittedAt = Date.parse(artifactRun?.completedAt || initialReview?.review.submitted_at || previousRun.completedAt);
     const developerComments = comments
         .filter((comment) => Date.parse(comment.created_at || '') > submittedAt)
         .map((comment) => String(comment.body || '').slice(0, 12000));
-    return { run: initialReview.run, developerComments };
+    return { run: previousRun, developerComments };
 };
+const publishReviewRun = async (enabled, publish) => {
+    if (!enabled)
+        return false;
+    await publish();
+    return true;
+};
+exports.publishReviewRun = publishReviewRun;
 const findDuplicateRun = async (context, mode, headSha) => {
     const repo = context.repo();
     const reviews = (await context.octokit.paginate(context.octokit.pulls.listReviews, {
@@ -147236,7 +147251,9 @@ const robot = (app) => {
             return 'duplicate';
         }
         const model = await loadModel(context);
-        const previous = config.mode === 'final' ? await loadPreviousContext(context) : { developerComments: [] };
+        const previous = config.mode === 'final'
+            ? await loadPreviousContext(context, config.previousReviewRunPath, headSha)
+            : { developerComments: [] };
         const loaded = await loadReviewFiles(context, headSha, baseSha, config.maxPatchLength);
         let policy = '';
         try {
@@ -147267,13 +147284,13 @@ const robot = (app) => {
             previous,
             requestContext: (request) => (0, gitnexus_js_1.requestGitNexusContext)(request, headSha, { version: config.gitnexusVersion }),
         });
-        await context.octokit.pulls.createReview({
+        await (0, exports.publishReviewRun)(config.publishReviewComment, () => context.octokit.pulls.createReview({
             ...context.repo(),
             pull_number: context.pullRequest().pull_number,
             body: (0, report_js_1.formatReviewBody)(run),
             event: 'COMMENT',
             commit_id: headSha,
-        });
+        }));
         await (0, report_js_1.writeActionOutputs)(run);
         loglevel_1.default.info(`Evidence review completed for ${repository}#${run.pullRequest} at ${headSha}: ${run.verdict.status}`);
         if (config.failOnVerdict && run.verdict.status !== 'approved_to_merge') {
@@ -147472,6 +147489,15 @@ const readPositiveInteger = (value, fallback) => {
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
+const readBoolean = (value, fallback) => {
+    if (!value)
+        return fallback;
+    if (value === 'true')
+        return true;
+    if (value === 'false')
+        return false;
+    throw new Error(`Expected true or false, received: ${value}`);
+};
 const loadReviewConfig = () => {
     const requestedMode = readInput('review_mode') || process.env.REVIEW_MODE || 'initial';
     if (requestedMode !== 'initial' && requestedMode !== 'final') {
@@ -147484,13 +147510,15 @@ const loadReviewConfig = () => {
     return {
         mode: requestedMode,
         policyPath: readInput('policy_path') || process.env.POLICY_PATH,
+        previousReviewRunPath: readInput('previous_review_run_path') || process.env.PREVIOUS_REVIEW_RUN_PATH,
+        publishReviewComment: readBoolean(readInput('publish_review_comment') || process.env.PUBLISH_REVIEW_COMMENT, true),
         gitnexusVersion,
         initialModel: readInput('initial_model') || process.env.INITIAL_MODEL || 'gpt-5.6-luna',
         validationModel: readInput('validation_model') || process.env.VALIDATION_MODEL || 'gpt-5.6-terra',
         escalationModel: readInput('escalation_model') || process.env.ESCALATION_MODEL || 'gpt-5.6-sol',
         maxPatchLength: readPositiveInteger(readInput('max_patch_length') || process.env.MAX_PATCH_LENGTH, 30000),
         maxContextRequests: readPositiveInteger(readInput('max_context_requests') || process.env.MAX_CONTEXT_REQUESTS, 6),
-        failOnVerdict: (readInput('fail_on_verdict') || process.env.FAIL_ON_VERDICT || 'false') === 'true',
+        failOnVerdict: readBoolean(readInput('fail_on_verdict') || process.env.FAIL_ON_VERDICT, false),
     };
 };
 exports.loadReviewConfig = loadReviewConfig;
@@ -147841,6 +147869,67 @@ const loadPolicy = async (policyPath, cwd = process.cwd()) => {
     return content;
 };
 exports.loadPolicy = loadPolicy;
+
+
+/***/ }),
+
+/***/ 25775:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.loadPreviousReviewRun = void 0;
+const promises_1 = __importDefault(__nccwpck_require__(93977));
+const node_path_1 = __importDefault(__nccwpck_require__(49411));
+const isStringArray = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isReviewRun = (value) => {
+    if (!value || typeof value !== 'object')
+        return false;
+    const run = value;
+    return run.schemaVersion === 1 &&
+        typeof run.runId === 'string' &&
+        run.mode === 'initial' &&
+        typeof run.repository === 'string' &&
+        Number.isInteger(run.pullRequest) &&
+        typeof run.baseSha === 'string' &&
+        typeof run.headSha === 'string' &&
+        typeof run.startedAt === 'string' &&
+        typeof run.completedAt === 'string' &&
+        Array.isArray(run.findings) &&
+        !!run.verdict &&
+        typeof run.verdict.summary === 'string' &&
+        isStringArray(run.verdict.blockingFindingIds) &&
+        isStringArray(run.verdict.evidenceGaps) &&
+        ['approved_to_merge', 'changes_required', 'insufficient_evidence'].includes(String(run.verdict.status));
+};
+const loadPreviousReviewRun = async (configuredPath, expected) => {
+    if (!configuredPath)
+        return undefined;
+    const workspace = node_path_1.default.resolve(process.cwd());
+    const resolved = node_path_1.default.resolve(workspace, configuredPath);
+    const relative = node_path_1.default.relative(workspace, resolved);
+    if (relative.startsWith('..') || node_path_1.default.isAbsolute(relative))
+        return undefined;
+    try {
+        const run = JSON.parse(await promises_1.default.readFile(resolved, 'utf8'));
+        if (!isReviewRun(run))
+            return undefined;
+        if (run.repository !== expected.repository ||
+            run.pullRequest !== expected.pullRequest ||
+            run.headSha !== expected.headSha) {
+            return undefined;
+        }
+        return run;
+    }
+    catch {
+        return undefined;
+    }
+};
+exports.loadPreviousReviewRun = loadPreviousReviewRun;
 
 
 /***/ }),

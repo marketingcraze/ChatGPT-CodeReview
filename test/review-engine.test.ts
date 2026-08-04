@@ -14,6 +14,7 @@ const file: ReviewFile = {
 };
 const config: ReviewConfig = {
   mode: 'initial',
+  publishReviewComment: true,
   gitnexusVersion: '1.6.9',
   initialModel: 'gpt-5.6-luna',
   validationModel: 'gpt-5.6-terra',

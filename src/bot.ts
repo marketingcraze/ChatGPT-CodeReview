@@ -8,6 +8,7 @@ import { GitNexusReceipt, PreviousReviewContext, ReviewFile, ReviewRun } from '.
 import { extractChangedLines } from './evidence.js';
 import { ensureGitNexusFresh, requestGitNexusContext } from './gitnexus.js';
 import { loadPolicy } from './policy.js';
+import { loadPreviousReviewRun } from './previous-review.js';
 import { runEvidenceReview, JsonModelClient } from './review-engine.js';
 import {
   formatReviewBody,
@@ -142,9 +143,19 @@ const loadReviewFiles = async (
   return { files, unreviewedFiles };
 };
 
-const loadPreviousContext = async (context: Context): Promise<PreviousReviewContext> => {
+const loadPreviousContext = async (
+  context: Context,
+  previousReviewRunPath: string | undefined,
+  headSha: string,
+): Promise<PreviousReviewContext> => {
   const repo = context.repo();
   const pullNumber = context.pullRequest().pull_number;
+  const repository = `${repo.owner}/${repo.repo}`;
+  const artifactRun = await loadPreviousReviewRun(previousReviewRunPath, {
+    repository,
+    pullRequest: pullNumber,
+    headSha,
+  });
   const reviews = (await context.octokit.paginate(context.octokit.pulls.listReviews, {
     ...repo,
     pull_number: pullNumber,
@@ -156,17 +167,29 @@ const loadPreviousContext = async (context: Context): Promise<PreviousReviewCont
     .map((review) => ({ review, run: parseReviewRunMarker(review.body) }))
     .find(({ run }) => run?.mode === 'initial');
 
-  if (!initialReview?.run) return { developerComments: [] };
+  const previousRun = artifactRun || initialReview?.run;
+  if (!previousRun) return { developerComments: [] };
   const comments = (await context.octokit.paginate(context.octokit.issues.listComments, {
     ...repo,
     issue_number: pullNumber,
     per_page: 100,
   })) as any[];
-  const submittedAt = Date.parse(initialReview.review.submitted_at || initialReview.run.completedAt);
+  const submittedAt = Date.parse(
+    artifactRun?.completedAt || initialReview?.review.submitted_at || previousRun.completedAt,
+  );
   const developerComments = comments
     .filter((comment) => Date.parse(comment.created_at || '') > submittedAt)
     .map((comment) => String(comment.body || '').slice(0, 12000));
-  return { run: initialReview.run, developerComments };
+  return { run: previousRun, developerComments };
+};
+
+export const publishReviewRun = async (
+  enabled: boolean,
+  publish: () => Promise<unknown>,
+): Promise<boolean> => {
+  if (!enabled) return false;
+  await publish();
+  return true;
 };
 
 const findDuplicateRun = async (
@@ -245,7 +268,9 @@ export const robot = (app: Probot) => {
 
       const model = await loadModel(context);
       const previous =
-        config.mode === 'final' ? await loadPreviousContext(context) : { developerComments: [] };
+        config.mode === 'final'
+          ? await loadPreviousContext(context, config.previousReviewRunPath, headSha)
+          : { developerComments: [] };
       const loaded = await loadReviewFiles(
         context,
         headSha,
@@ -283,13 +308,15 @@ export const robot = (app: Probot) => {
           requestGitNexusContext(request, headSha, { version: config.gitnexusVersion }),
       });
 
-      await context.octokit.pulls.createReview({
-        ...context.repo(),
-        pull_number: context.pullRequest().pull_number,
-        body: formatReviewBody(run),
-        event: 'COMMENT',
-        commit_id: headSha,
-      });
+      await publishReviewRun(config.publishReviewComment, () =>
+        context.octokit.pulls.createReview({
+          ...context.repo(),
+          pull_number: context.pullRequest().pull_number,
+          body: formatReviewBody(run),
+          event: 'COMMENT',
+          commit_id: headSha,
+        }),
+      );
       await writeActionOutputs(run);
       log.info(
         `Evidence review completed for ${repository}#${run.pullRequest} at ${headSha}: ${run.verdict.status}`,

@@ -6,6 +6,8 @@ describe('public Action contract', () => {
   test.each([
     'review_mode',
     'policy_path',
+    'previous_review_run_path',
+    'publish_review_comment',
     'gitnexus_version',
     'initial_model',
     'validation_model',

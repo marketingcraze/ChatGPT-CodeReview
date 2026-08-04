@@ -5,6 +5,8 @@ export const PERMITTED_GITNEXUS_VERSION = '1.6.9';
 export interface ReviewConfig {
   mode: ReviewMode;
   policyPath?: string;
+  previousReviewRunPath?: string;
+  publishReviewComment: boolean;
   gitnexusVersion: string;
   initialModel: string;
   validationModel: string;
@@ -25,6 +27,13 @@ const readPositiveInteger = (value: string | undefined, fallback: number): numbe
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const readBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (!value) return fallback;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`Expected true or false, received: ${value}`);
+};
+
 export const loadReviewConfig = (): ReviewConfig => {
   const requestedMode = readInput('review_mode') || process.env.REVIEW_MODE || 'initial';
   if (requestedMode !== 'initial' && requestedMode !== 'final') {
@@ -42,6 +51,12 @@ export const loadReviewConfig = (): ReviewConfig => {
   return {
     mode: requestedMode,
     policyPath: readInput('policy_path') || process.env.POLICY_PATH,
+    previousReviewRunPath:
+      readInput('previous_review_run_path') || process.env.PREVIOUS_REVIEW_RUN_PATH,
+    publishReviewComment: readBoolean(
+      readInput('publish_review_comment') || process.env.PUBLISH_REVIEW_COMMENT,
+      true,
+    ),
     gitnexusVersion,
     initialModel:
       readInput('initial_model') || process.env.INITIAL_MODEL || 'gpt-5.6-luna',
@@ -57,7 +72,9 @@ export const loadReviewConfig = (): ReviewConfig => {
       readInput('max_context_requests') || process.env.MAX_CONTEXT_REQUESTS,
       6,
     ),
-    failOnVerdict:
-      (readInput('fail_on_verdict') || process.env.FAIL_ON_VERDICT || 'false') === 'true',
+    failOnVerdict: readBoolean(
+      readInput('fail_on_verdict') || process.env.FAIL_ON_VERDICT,
+      false,
+    ),
   };
 };

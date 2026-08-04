@@ -39,6 +39,8 @@ The upstream-compatible environment variables remain available. The managed fork
 
 The public fork contains only generic review rules. Put organization-specific policy in the private caller repository (for example `.github/ai-review-policy.yml`) and pass its repository-relative path through `policy_path`. Policy text, raw model payloads, targeted GitNexus context, and source excerpts are not written to logs or Action outputs.
 
+Callers that publish one trusted final summary can set `publish_review_comment: false` in both stages. Persist the initial `review_run_json` output as a private GitHub Actions artifact named for the pull request and exact head SHA, download that exact artifact during the final run, and pass its repository-relative location through `previous_review_run_path`. A missing, malformed, mismatched, or workspace-external artifact is rejected, so final review fails closed instead of approving without its initial evidence.
+
 GitNexus is pinned to `1.6.9`. That release exposes human-readable `status` but does not implement the later `status --json` receipt. The Action attempts the JSON command, recognizes only that known compatibility case, reads the full SHA from `.gitnexus/gitnexus.json`, verifies local `HEAD` against the PR head, rejects incomplete metadata, and permits one `analyze --force --index-only` rebuild. A stale result always returns `insufficient_evidence`.
 
 ### Initial review
@@ -70,6 +72,7 @@ jobs:
         with:
           review_mode: initial
           policy_path: .github/ai-review-policy.yml
+          publish_review_comment: false
           gitnexus_version: 1.6.9
           fail_on_verdict: false
         env:
@@ -107,6 +110,8 @@ jobs:
         with:
           review_mode: final
           policy_path: .github/ai-review-policy.yml
+          previous_review_run_path: .trusted-state/initial-review.json
+          publish_review_comment: false
           gitnexus_version: 1.6.9
           fail_on_verdict: false
         env:
@@ -114,7 +119,7 @@ jobs:
           USE_GITHUB_MODELS: true
 ```
 
-The Action exposes `verdict`, `reviewed_sha`, `gitnexus_status`, `findings_json`, and `review_run_json`. Enforcement can set `fail_on_verdict: true` only after the documented 20-PR/14-day pilot. `approved_to_merge`, `changes_required`, and `insufficient_evidence` are the only verdicts.
+The Action exposes `verdict`, `reviewed_sha`, `gitnexus_status`, `findings_json`, and `review_run_json`. When Action publication is suppressed, the caller owns the sole final comment and label update. Enforcement can set `fail_on_verdict: true` only after the documented 20-PR/14-day pilot. `approved_to_merge`, `changes_required`, and `insufficient_evidence` are the only verdicts.
 
 ### Maintenance
 
