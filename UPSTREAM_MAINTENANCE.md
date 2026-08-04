@@ -44,7 +44,7 @@ The inventory is machine-read by `scripts/check-upstream-guide.mjs`. Paths and i
   {"path":"action.yml","symbols":["inputs","outputs","runs"],"purpose":"Expose the managed Action contract on Node 24.","invariants":["Inputs have safe defaults.","All structured outputs are declared."],"tests":["test/action-metadata.test.ts"],"inputs":["review_mode","policy_path","gitnexus_version","initial_model","validation_model","escalation_model","max_patch_length","max_context_requests","fail_on_verdict"],"outputs":["verdict","reviewed_sha","gitnexus_status","findings_json","review_run_json"],"generated":[]},
   {"path":"scripts/check-upstream-guide.mjs","symbols":["main"],"purpose":"Fail CI on stale metadata, missing inventory paths/tests, or undocumented managed changes.","invariants":["Baseline and managed release SHAs exist.","Managed path changes update this guide."],"tests":["test/upstream-maintenance.test.ts"],"inputs":[],"outputs":[],"generated":[]},
   {"path":"scripts/check-upstream-freshness.mjs","symbols":["main"],"purpose":"Compare the recorded upstream baseline to the live public main SHA.","invariants":["Upstream movement fails the release check instead of merging automatically."],"tests":["test/upstream-maintenance.test.ts"],"inputs":[],"outputs":[],"generated":[]},
-  {"path":"package.json","symbols":["scripts"],"purpose":"Expose deterministic typecheck, test, guide, upstream, and package build commands.","invariants":["Dependencies install from package-lock.json.","Validation commands are reproducible in CI."],"tests":["test/action-metadata.test.ts"],"inputs":[],"outputs":[],"generated":["action/index.cjs"]},
+  {"path":"package.json","symbols":["scripts"],"purpose":"Expose deterministic typecheck, test, guide, upstream, and package build commands.","invariants":["Dependencies install from the committed yarn.lock with --frozen-lockfile.","Validation commands are reproducible in CI."],"tests":["test/action-metadata.test.ts"],"inputs":[],"outputs":[],"generated":["action/index.cjs"]},
   {"path":"tsconfig.check.json","symbols":["compilerOptions"],"purpose":"Type-check managed TypeScript without unrelated legacy CommonJS diagnostics.","invariants":["All managed TypeScript is strict-checked without emitting files."],"tests":["test/action-metadata.test.ts"],"inputs":[],"outputs":[],"generated":[]},
   {"path":"jest.config.js","symbols":["default"],"purpose":"Run TypeScript tests under the repository ESM contract and resolve NodeNext .js specifiers.","invariants":["Upstream and managed fixtures run under Node 24."],"tests":["test/index.test.ts"],"inputs":[],"outputs":[],"generated":[]},
   {"path":".env.example","symbols":["managed environment variables"],"purpose":"Document self-hosted managed configuration without real secrets or private policy.","invariants":["No credential or private policy content is committed."],"tests":["test/action-metadata.test.ts"],"inputs":["REVIEW_MODE","POLICY_PATH","GITNEXUS_VERSION","INITIAL_MODEL","VALIDATION_MODEL","ESCALATION_MODEL","MAX_CONTEXT_REQUESTS","FAIL_ON_VERDICT"],"outputs":[],"generated":[]},
@@ -101,7 +101,7 @@ Stop if authentication, the recorded base, release identity, or an overlapping c
 Run from a clean checkout with the supported Node runtime:
 
 ```bash
-npm ci
+yarn install --frozen-lockfile
 npm run typecheck
 npm run lint
 npm test

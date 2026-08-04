@@ -79764,7 +79764,7 @@ module.exports = VerifyStream;
 const path = __nccwpck_require__(71017);
 const fs = __nccwpck_require__(77758);
 const stripBom = __nccwpck_require__(88551);
-const parseJson = __nccwpck_require__(81680);
+const parseJson = __nccwpck_require__(86615);
 const pify = __nccwpck_require__(64810);
 
 const parse = (data, filePath, options = {}) => {
@@ -79783,47 +79783,6 @@ module.exports = loadJsonFile;
 // TODO: Remove this for the next major release
 module.exports["default"] = loadJsonFile;
 module.exports.sync = (filePath, options) => parse(fs.readFileSync(filePath, 'utf8'), filePath, options);
-
-
-/***/ }),
-
-/***/ 81680:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-const errorEx = __nccwpck_require__(23505);
-const fallback = __nccwpck_require__(55586);
-
-const JSONError = errorEx('JSONError', {
-	fileName: errorEx.append('in %s')
-});
-
-module.exports = (input, reviver, filename) => {
-	if (typeof reviver === 'string') {
-		filename = reviver;
-		reviver = null;
-	}
-
-	try {
-		try {
-			return JSON.parse(input, reviver);
-		} catch (err) {
-			fallback(input, reviver);
-
-			throw err;
-		}
-	} catch (err) {
-		err.message = err.message.replace(/\n/g, '');
-
-		const jsonErr = new JSONError(err);
-		if (filename) {
-			jsonErr.fileName = filename;
-		}
-
-		throw jsonErr;
-	}
-};
 
 
 /***/ }),
@@ -102521,6 +102480,47 @@ const pTry = (fn, ...arguments_) => new Promise(resolve => {
 module.exports = pTry;
 // TODO: remove this in the next major version
 module.exports["default"] = pTry;
+
+
+/***/ }),
+
+/***/ 86615:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+const errorEx = __nccwpck_require__(23505);
+const fallback = __nccwpck_require__(55586);
+
+const JSONError = errorEx('JSONError', {
+	fileName: errorEx.append('in %s')
+});
+
+module.exports = (input, reviver, filename) => {
+	if (typeof reviver === 'string') {
+		filename = reviver;
+		reviver = null;
+	}
+
+	try {
+		try {
+			return JSON.parse(input, reviver);
+		} catch (err) {
+			fallback(input, reviver);
+
+			throw err;
+		}
+	} catch (err) {
+		err.message = err.message.replace(/\n/g, '');
+
+		const jsonErr = new JSONError(err);
+		if (filename) {
+			jsonErr.fileName = filename;
+		}
+
+		throw jsonErr;
+	}
+};
 
 
 /***/ }),
