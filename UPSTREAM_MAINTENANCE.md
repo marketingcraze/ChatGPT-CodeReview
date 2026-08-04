@@ -5,7 +5,7 @@ managed_repository: marketingcraze/ChatGPT-CodeReview
 upstream_base_sha: 08174796256372e73e488990625313bbfa4be046
 managed_release_sha: 08174796256372e73e488990625313bbfa4be046
 managed_release: pre-managed-baseline
-last_verified_at: 2026-08-04T10:30:00Z
+last_verified_at: 2026-08-04T11:10:00Z
 ---
 
 # Upstream maintenance for the managed evidence-review Action
