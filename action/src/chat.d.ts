@@ -9,6 +9,11 @@ export declare class Chat {
     private get normalizedModel();
     private get isReasoningModel();
     private get reasoningEffortOption();
+    completeJson: <T>(options: {
+        model: string;
+        system: string;
+        prompt: string;
+    }) => Promise<T>;
     private generatePrompt;
     codeReview: (patch: string) => Promise<Array<{
         lgtm: boolean;

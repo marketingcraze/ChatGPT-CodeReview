@@ -31,58 +31,94 @@ example:
 
 <img width="1052" alt="image" src="https://user-images.githubusercontent.com/13167934/218999459-812206e1-d8d2-4900-8ce8-19b5b6e1f5cb.png">
 
-## Using Github Actions
+## Using GitHub Actions
 
 [actions/chatgpt-codereviewer](https://github.com/marketplace/actions/chatgpt-codereviewer)
 
-1. add the `OPENAI_API_KEY` to your github actions secrets
-2. create `.github/workflows/cr.yml` add bellow content
+The upstream-compatible environment variables remain available. The managed fork also provides an evidence-backed two-stage review and final merge verdict. GitHub Actions is the supported orchestration layer because it receives the immutable PR event SHA, can post a review on that SHA, and can become a required branch check without moving repository data through an external n8n service.
+
+The public fork contains only generic review rules. Put organization-specific policy in the private caller repository (for example `.github/ai-review-policy.yml`) and pass its repository-relative path through `policy_path`. Policy text, raw model payloads, targeted GitNexus context, and source excerpts are not written to logs or Action outputs.
+
+GitNexus is pinned to `1.6.9`. That release exposes human-readable `status` but does not implement the later `status --json` receipt. The Action attempts the JSON command, recognizes only that known compatibility case, reads the full SHA from `.gitnexus/gitnexus.json`, verifies local `HEAD` against the PR head, rejects incomplete metadata, and permits one `analyze --force --index-only` rebuild. A stale result always returns `insufficient_evidence`.
+
+### Initial review
+
+Use an immutable managed release SHA in a caller repository:
 
 ```yml
-name: Code Review
+name: Initial evidence review
 
 permissions:
   contents: read
   pull-requests: write
-  models: true # if you choose use github models, set this to be true
+  models: read
 
 on:
   pull_request:
     types: [opened, reopened, synchronize]
 
 jobs:
-  test:
-    # if: ${{ contains(github.event.*.labels.*.name, 'gpt review') }} # Optional; to run only when a label is attached
+  evidence-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: anc95/ChatGPT-CodeReview@main
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - id: review
+        uses: marketingcraze/ChatGPT-CodeReview@<FULL_MANAGED_RELEASE_SHA>
+        with:
+          review_mode: initial
+          policy_path: .github/ai-review-policy.yml
+          gitnexus_version: 1.6.9
+          fail_on_verdict: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          # if use github models https://github.com/marketplace/models
           USE_GITHUB_MODELS: true
-          MODEL: openai/gpt-4o
-
-          # else if use azure deployment
-          AZURE_API_VERSION: xx
-          AZURE_DEPLOYMENT: xx
-
-          # else use standard llm model
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_ENDPOINT: https://api.openai.com/v1
-          MODEL: gpt-3.5-turbo # https://platform.openai.com/docs/models
-
-          # common
-          LANGUAGE: Chinese
-          PROMPT: # example: Please check if there are any confusions or irregularities in the following code diff:
-          top_p: 1 # https://platform.openai.com/docs/api-reference/chat/create#chat/create-top_p
-          temperature: 1 # https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
-          max_tokens: 10000
-          # REASONING_EFFORT: low # optional; only for reasoning models (e.g. gpt-5.4, gpt-5.5), values (model support varies): none, minimal, low, medium, high, xhigh
-          MAX_PATCH_LENGTH: 10000 # if the patch/diff length is large than MAX_PATCH_LENGTH, will be ignored and won't review. By default, with no MAX_PATCH_LENGTH set, there is also no limit for the patch/diff length.
-          IGNORE_PATTERNS: /node_modules/**/*,*.md # glob pattern or regex pattern to ignore files, separated by comma
-          INCLUDE_PATTERNS: *.js,*.ts # glob pattern or regex pattern to include files, separated by comma
 ```
+
+### Final advisory review on close
+
+During the PWA-LIVE pilot, keep `fail_on_verdict: false`. The final run compares the structured initial findings, later developer comments and completion claims, current exact-SHA code, tests visible in the submitted repository, and targeted GitNexus context.
+
+```yml
+name: Final evidence review
+
+permissions:
+  contents: read
+  pull-requests: write
+  models: read
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  final-review:
+    if: github.event.pull_request.merged == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - id: review
+        uses: marketingcraze/ChatGPT-CodeReview@<FULL_MANAGED_RELEASE_SHA>
+        with:
+          review_mode: final
+          policy_path: .github/ai-review-policy.yml
+          gitnexus_version: 1.6.9
+          fail_on_verdict: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USE_GITHUB_MODELS: true
+```
+
+The Action exposes `verdict`, `reviewed_sha`, `gitnexus_status`, `findings_json`, and `review_run_json`. Enforcement can set `fail_on_verdict: true` only after the documented 20-PR/14-day pilot. `approved_to_merge`, `changes_required`, and `insufficient_evidence` are the only verdicts.
+
+### Maintenance
+
+Before importing upstream changes, read [UPSTREAM_MAINTENANCE.md](UPSTREAM_MAINTENANCE.md). Managed `main` is never updated directly or automatically. The daily workflow reports drift in one issue; every import uses a reviewed `maintenance/upstream-<version>` branch, semantic conflict resolution, invariant fixtures, and packaged-Action parity.
 
 ## Self-hosting
 

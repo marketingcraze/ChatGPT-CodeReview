@@ -62,6 +62,46 @@ export class Chat {
     return { reasoning_effort: effort };
   }
 
+  public completeJson = async <T>(options: {
+    model: string;
+    system: string;
+    prompt: string;
+  }): Promise<T> => {
+    const normalizedModel = options.model.split('/').pop()?.toLowerCase() || options.model;
+    const isReasoning =
+      this.reasoningModels.includes(normalizedModel) ||
+      this.reasoningPrefixes.some((prefix) => normalizedModel.startsWith(prefix));
+    const reasoningEffort = process.env.REASONING_EFFORT;
+    const reasoningOption =
+      reasoningEffort && isReasoning && isReasoningEffort(reasoningEffort)
+        ? { reasoning_effort: reasoningEffort }
+        : {};
+
+    const res = await this.openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: options.system },
+        { role: 'user', content: options.prompt },
+      ],
+      model: options.model,
+      ...(isReasoning
+        ? {}
+        : {
+            temperature: +(process.env.temperature || 0) || 0.2,
+            top_p: +(process.env.top_p || 0) || 1,
+          }),
+      max_tokens: process.env.max_tokens ? +process.env.max_tokens : undefined,
+      ...reasoningOption,
+      response_format: { type: 'json_object' },
+    });
+    const content = res.choices[0]?.message.content;
+    if (!content) throw new Error('Model returned no JSON content');
+    try {
+      return JSON.parse(content) as T;
+    } catch {
+      throw new Error('Model returned invalid JSON content');
+    }
+  };
+
   private generatePrompt = (patch: string) => {
     const answerLanguage = process.env.LANGUAGE
         ? `Answer me in ${process.env.LANGUAGE},`

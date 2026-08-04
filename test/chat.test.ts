@@ -249,4 +249,27 @@ describe("Chat", () => {
       })
     );
   });
+
+  test("completeJson uses the explicitly selected staged model", async () => {
+    mockCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: '{"findings":[]}' } }],
+    });
+    const chat = new Chat("test-key");
+    await expect(
+      chat.completeJson({ model: "gpt-5.6-terra", system: "system", prompt: "prompt" })
+    ).resolves.toEqual({ findings: [] });
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-5.6-terra" })
+    );
+  });
+
+  test("completeJson fails closed on invalid model JSON", async () => {
+    mockCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: 'not-json' } }],
+    });
+    const chat = new Chat("test-key");
+    await expect(
+      chat.completeJson({ model: "gpt-5.6-luna", system: "system", prompt: "prompt" })
+    ).rejects.toThrow("invalid JSON");
+  });
 });

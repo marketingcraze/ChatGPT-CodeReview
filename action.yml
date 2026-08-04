@@ -1,8 +1,55 @@
 name: ChatGPT CodeReviewer
-description: 'A Code Review Action Powered By ChatGPT'
+description: 'An evidence-backed, context-validated code review Action'
 branding:
   icon: 'gift'
   color: orange
+inputs:
+  review_mode:
+    description: 'Review stage: initial or final'
+    required: false
+    default: 'initial'
+  policy_path:
+    description: 'Repository-relative path to a private caller-owned review policy'
+    required: false
+  gitnexus_version:
+    description: 'Permitted GitNexus version; only 1.6.9 is accepted by this release'
+    required: false
+    default: '1.6.9'
+  initial_model:
+    description: 'Initial evidence discovery model'
+    required: false
+    default: 'gpt-5.6-luna'
+  validation_model:
+    description: 'Adversarial validation model'
+    required: false
+    default: 'gpt-5.6-terra'
+  escalation_model:
+    description: 'High/critical unresolved escalation model'
+    required: false
+    default: 'gpt-5.6-sol'
+  max_patch_length:
+    description: 'Maximum reviewable patch length; exceeding it produces insufficient_evidence'
+    required: false
+    default: '30000'
+  max_context_requests:
+    description: 'Maximum targeted GitNexus requests per run'
+    required: false
+    default: '6'
+  fail_on_verdict:
+    description: 'Fail the workflow unless the verdict is approved_to_merge'
+    required: false
+    default: 'false'
+outputs:
+  verdict:
+    description: 'approved_to_merge, changes_required, or insufficient_evidence'
+  reviewed_sha:
+    description: 'Exact pull request head SHA reviewed'
+  gitnexus_status:
+    description: 'Freshness state of the exact-SHA GitNexus index'
+  findings_json:
+    description: 'Structured validated findings without source excerpts'
+  review_run_json:
+    description: 'Structured ReviewRun without policy, context payloads, or source excerpts'
 runs:
   using: 'node24'
   main: 'action/index.cjs'

@@ -15,7 +15,11 @@
   ],
   "scripts": {
     "start": "node -r dotenv/config ./dist/index.js",
-    "test": "jest",
+    "test": "jest --runInBand",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit",
+    "lint": "tsc -p tsconfig.check.json --noEmit",
+    "check:guide": "node scripts/check-upstream-guide.mjs",
+    "check:upstream": "node scripts/check-upstream-freshness.mjs",
     "build": "rm -rf dist && rollup -c rollup.config.ts --configPlugin @rollup/plugin-typescript && ncc build src/github-action.cjs -o action",
     "build:lambda": "ncc build src/aws-lambda.cjs -o lambda"
   },
