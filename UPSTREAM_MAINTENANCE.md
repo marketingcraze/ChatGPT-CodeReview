@@ -110,6 +110,8 @@ npm run build
 git diff --exit-code -- action/index.cjs
 ```
 
+The required Gitleaks job scans `origin/main..HEAD` with a pinned open-source scanner. The selected upstream baseline contains nine historical detections in upstream test/generated artifacts; rewriting those public commits is prohibited. The managed range must contain zero findings. Every future upstream integration is still scanned because its new commits and merge commit are inside the maintenance branch range.
+
 Then run baseline upstream fixtures and managed evidence-review fixtures. Run the upstream-conflict fixture. From a test caller repository, run both modes at an exact PR SHA and exercise `approved_to_merge`, `changes_required`, and `insufficient_evidence`. Explicitly test stale GitNexus, one failed forced rebuild, developer completion claims, prompt injection in repository content/comments, model/API failure, duplicate deliveries, deleted PR branches, excluded files, and oversized patches. Inspect logs to confirm no payload leakage.
 
 ## 8. Parity and release verification
