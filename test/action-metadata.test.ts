@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
 describe('public Action contract', () => {
   const action = fs.readFileSync('action.yml', 'utf8');
@@ -29,5 +30,16 @@ describe('public Action contract', () => {
   test('runs the committed Node 24 package', () => {
     expect(action).toContain("using: 'node24'");
     expect(action).toContain("main: 'action/index.cjs'");
+  });
+
+  test('pins every third-party workflow Action to a full commit SHA', () => {
+    const workflowRoot = path.join(process.cwd(), '.github/workflows');
+    for (const filename of fs.readdirSync(workflowRoot)) {
+      const workflow = fs.readFileSync(path.join(workflowRoot, filename), 'utf8');
+      for (const match of workflow.matchAll(/^\s*uses:\s*([^\s]+)$/gm)) {
+        if (match[1].startsWith('./')) continue;
+        expect(match[1]).toMatch(/@[a-f0-9]{40}$/);
+      }
+    }
   });
 });
