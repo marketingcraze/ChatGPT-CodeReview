@@ -15,7 +15,7 @@ const createIndex = async (commit: string) => {
   return root;
 };
 
-const baseRunner = (root: string, onAnalyze?: () => Promise<void>): CommandRunner =>
+const baseRunner = (root: string, onAnalyze?: (args: string[]) => Promise<void>): CommandRunner =>
   async (command, args) => {
     if (command === 'git' && args.join(' ') === 'rev-parse HEAD') {
       return { stdout: `${head}\n`, stderr: '', exitCode: 0 };
@@ -27,7 +27,7 @@ const baseRunner = (root: string, onAnalyze?: () => Promise<void>): CommandRunne
       return { stdout: '', stderr: "error: unknown option '--json'", exitCode: 1 };
     }
     if (command === 'npx' && args.includes('analyze')) {
-      await onAnalyze?.();
+      await onAnalyze?.(args);
       return { stdout: 'indexed', stderr: '', exitCode: 0 };
     }
     if (command === 'npx' && args.includes('status')) {
@@ -47,10 +47,11 @@ describe('GitNexus exact-SHA freshness', () => {
     expect(receipt.status).toBe('up-to-date');
     expect(receipt.compatibilityMode).toBe('v1.6.9-normalized');
     expect(receipt.indexCommit).toBe(head);
+    expect(receipt.incrementalUpdateAttempted).toBe(false);
     expect(receipt.forcedRebuildAttempted).toBe(false);
   });
 
-  test('performs one forced rebuild before accepting a stale index', async () => {
+  test('uses an incremental update before accepting a stale seeded index', async () => {
     const root = await createIndex('c'.repeat(40));
     let rebuilds = 0;
     const runner = baseRunner(root, async () => {
@@ -63,6 +64,27 @@ describe('GitNexus exact-SHA freshness', () => {
     const receipt = await ensureGitNexusFresh(head, { cwd: root, runner });
     expect(rebuilds).toBe(1);
     expect(receipt.status).toBe('up-to-date');
+    expect(receipt.incrementalUpdateAttempted).toBe(true);
+    expect(receipt.forcedRebuildAttempted).toBe(false);
+  });
+
+  test('performs one forced rebuild only after incremental repair fails', async () => {
+    const root = await createIndex('c'.repeat(40));
+    let attempts = 0;
+    const runner = baseRunner(root, async (args) => {
+      attempts += 1;
+      if (args.includes('--force')) {
+        await fs.writeFile(
+          path.join(root, '.gitnexus/gitnexus.json'),
+          JSON.stringify({ lastCommit: head, indexedAt: new Date().toISOString() }),
+        );
+      }
+    });
+    const receipt = await ensureGitNexusFresh(head, { cwd: root, runner, restoreSource: 'base_cache' });
+    expect(attempts).toBe(2);
+    expect(receipt.status).toBe('up-to-date');
+    expect(receipt.restoreSource).toBe('base_cache');
+    expect(receipt.incrementalUpdateAttempted).toBe(true);
     expect(receipt.forcedRebuildAttempted).toBe(true);
   });
 

@@ -9,9 +9,13 @@ export declare const ensureGitNexusFresh: (headSha: string, options?: {
     cwd?: string;
     version?: string;
     runner?: CommandRunner;
+    binaryPath?: string;
+    restoreSource?: GitNexusReceipt['restoreSource'];
+    indexManifestDigest?: string;
 }) => Promise<GitNexusReceipt>;
 export declare const requestGitNexusContext: (request: ContextRequest, headSha: string, options?: {
     cwd?: string;
     version?: string;
     runner?: CommandRunner;
+    binaryPath?: string;
 }) => Promise<ContextBundle>;

@@ -4,12 +4,13 @@ import log from 'loglevel';
 
 import { Chat } from './chat.js';
 import { loadReviewConfig } from './config.js';
-import { GitNexusReceipt, PreviousReviewContext, ReviewFile, ReviewRun } from './contracts.js';
+import { GitNexusReceipt, PreviousReviewContext, ReviewFile, ReviewRun, StageTiming } from './contracts.js';
 import { extractChangedLines } from './evidence.js';
 import { ensureGitNexusFresh, requestGitNexusContext } from './gitnexus.js';
 import { loadPolicy } from './policy.js';
 import { loadPreviousReviewRun } from './previous-review.js';
 import { runEvidenceReview, JsonModelClient } from './review-engine.js';
+import { loadCiEvidence, loadTrustedContext } from './trusted-inputs.js';
 import {
   formatReviewBody,
   parseReviewRunMarker,
@@ -218,8 +219,39 @@ const unavailableReceipt = (headSha: string, version: string, reason: string): G
   currentCommit: headSha,
   incompleteReasons: [reason],
   status: 'unavailable',
+  restoreSource: 'cold',
+  incrementalUpdateAttempted: false,
   forcedRebuildAttempted: true,
 });
+
+const readRestoreSource = (): GitNexusReceipt['restoreSource'] => {
+  const value = process.env.EVIDENCE_REVIEW_INDEX_RESTORE_SOURCE;
+  return value === 'exact_artifact' || value === 'base_cache' ? value : 'cold';
+};
+
+const readManifestDigest = () => {
+  const value = process.env.EVIDENCE_REVIEW_INDEX_MANIFEST_DIGEST;
+  return value && /^sha256:[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : undefined;
+};
+
+const timeStage = async <T>(
+  timings: StageTiming[],
+  stage: string,
+  operation: () => Promise<T>,
+): Promise<T> => {
+  const started = new Date();
+  try {
+    return await operation();
+  } finally {
+    const completed = new Date();
+    timings.push({
+      stage,
+      startedAt: started.toISOString(),
+      completedAt: completed.toISOString(),
+      durationMs: Math.max(0, completed.getTime() - started.getTime()),
+    });
+  }
+};
 
 export const eventMatchesMode = (payload: any, mode: ReviewRun['mode']) => {
   if (mode === 'final') return payload.action === 'closed' && !payload.pull_request?.merged;
@@ -267,31 +299,61 @@ export const robot = (app: Probot) => {
       }
 
       const model = await loadModel(context);
+      const timings: StageTiming[] = [];
       const previous =
         config.mode === 'final'
-          ? await loadPreviousContext(context, config.previousReviewRunPath, headSha)
+          ? await timeStage(timings, 'load.previous-review', () =>
+              loadPreviousContext(context, config.previousReviewRunPath, headSha),
+            )
           : { developerComments: [] };
-      const loaded = await loadReviewFiles(
-        context,
-        headSha,
-        baseSha,
-        config.maxPatchLength,
+      const loaded = await timeStage(timings, 'load.changed-files', () =>
+        loadReviewFiles(
+          context,
+          headSha,
+          baseSha,
+          config.maxPatchLength,
+        ),
       );
       let policy = '';
       try {
-        policy = await loadPolicy(config.policyPath);
+        policy = await timeStage(timings, 'load.policy', () => loadPolicy(config.policyPath));
       } catch {
         loaded.unreviewedFiles.push('Configured private policy was unavailable or invalid.');
       }
 
+      let trustedContext;
+      try {
+        trustedContext = await timeStage(timings, 'load.trusted-context', () =>
+          loadTrustedContext(config.trustedContextManifestPath),
+        );
+      } catch {
+        loaded.unreviewedFiles.push('Configured trusted architecture context was unavailable or invalid.');
+      }
+
+      const repository = `${context.repo().owner}/${context.repo().repo}`;
+      let ciEvidence;
+      try {
+        ciEvidence = await timeStage(timings, 'load.ci-evidence', () =>
+          loadCiEvidence(config.ciEvidencePath, { repository, headSha }),
+        );
+      } catch {
+        loaded.unreviewedFiles.push('Configured exact-SHA CI evidence was unavailable or invalid.');
+      }
+
       let gitnexus: GitNexusReceipt;
       try {
-        gitnexus = await ensureGitNexusFresh(headSha, { version: config.gitnexusVersion });
+        gitnexus = await timeStage(timings, 'gitnexus.freshness', () =>
+          ensureGitNexusFresh(headSha, {
+            version: config.gitnexusVersion,
+            binaryPath: config.gitnexusBinaryPath,
+            restoreSource: readRestoreSource(),
+            indexManifestDigest: readManifestDigest(),
+          }),
+        );
       } catch {
         gitnexus = unavailableReceipt(headSha, config.gitnexusVersion, 'freshness-check-failed');
       }
 
-      const repository = `${context.repo().owner}/${context.repo().repo}`;
       const run = await runEvidenceReview({
         repository,
         pullRequest: context.pullRequest().pull_number,
@@ -304,8 +366,14 @@ export const robot = (app: Probot) => {
         gitnexus,
         model,
         previous,
+        trustedContext,
+        ciEvidence,
+        timings,
         requestContext: (request) =>
-          requestGitNexusContext(request, headSha, { version: config.gitnexusVersion }),
+          requestGitNexusContext(request, headSha, {
+            version: config.gitnexusVersion,
+            binaryPath: config.gitnexusBinaryPath,
+          }),
       });
 
       await publishReviewRun(config.publishReviewComment, () =>

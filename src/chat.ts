@@ -1,4 +1,5 @@
 import { OpenAI, AzureOpenAI } from 'openai';
+import { ModelUsage } from './contracts.js';
 
 const reasoningEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
 
@@ -11,6 +12,7 @@ export class Chat {
   private openai: OpenAI | AzureOpenAI;
   private isAzure: boolean;
   private isGithubModels: boolean;
+  private usage = new Map<string, ModelUsage>();
 
   private reasoningModels = ['o1', 'o1-2024-12-17', 'o1-mini', 'o1-mini-2024-09-12'];
   private reasoningPrefixes = ['o3', 'o4', 'gpt-5'];
@@ -93,6 +95,18 @@ export class Chat {
       ...reasoningOption,
       response_format: { type: 'json_object' },
     });
+    const current = this.usage.get(options.model) || {
+      model: options.model,
+      calls: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    };
+    current.calls += 1;
+    current.inputTokens += res.usage?.prompt_tokens || 0;
+    current.outputTokens += res.usage?.completion_tokens || 0;
+    current.totalTokens += res.usage?.total_tokens || 0;
+    this.usage.set(options.model, current);
     const content = res.choices[0]?.message.content;
     if (!content) throw new Error('Model returned no JSON content');
     try {
@@ -101,6 +115,9 @@ export class Chat {
       throw new Error('Model returned invalid JSON content');
     }
   };
+
+  public getUsage = (): ModelUsage[] =>
+    Array.from(this.usage.values()).map((usage) => ({ ...usage }));
 
   private generatePrompt = (patch: string) => {
     const answerLanguage = process.env.LANGUAGE

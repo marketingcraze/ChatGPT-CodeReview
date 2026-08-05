@@ -79,8 +79,11 @@ export const writeActionOutputs = async (run: ReviewRun) => {
     verdict: run.verdict.status,
     reviewed_sha: run.headSha,
     gitnexus_status: run.gitnexus.status,
+    gitnexus_restore_source: run.gitnexus.restoreSource,
     findings_json: JSON.stringify(sanitizeReviewRun(run).findings),
     review_run_json: JSON.stringify(sanitizeReviewRun(run)),
+    timings_json: JSON.stringify(run.timings),
+    model_usage_json: JSON.stringify(run.modelUsage),
   };
   let text = '';
   for (const [name, value] of Object.entries(outputs)) {

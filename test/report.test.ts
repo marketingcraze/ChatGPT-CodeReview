@@ -20,7 +20,8 @@ const run: ReviewRun = {
   startedAt: '2026-08-04T00:00:00Z',
   completedAt: '2026-08-04T00:00:01Z',
   initialModel: 'gpt-5.6-luna',
-  validationModel: 'gpt-5.6-terra',
+  validationModel: 'gpt-5.6-luna',
+  contextValidationModel: 'gpt-5.6-terra',
   escalationModel: 'gpt-5.6-sol',
   gitnexus: {
     schemaVersion: 1,
@@ -32,8 +33,12 @@ const run: ReviewRun = {
     currentCommit: 'b'.repeat(40),
     incompleteReasons: [],
     status: 'up-to-date',
+    restoreSource: 'exact_artifact',
+    incrementalUpdateAttempted: false,
     forcedRebuildAttempted: false,
   },
+  timings: [],
+  modelUsage: [],
   contextRequests: [],
   findings: [
     {
@@ -89,6 +94,8 @@ describe('review reporting', () => {
       const written = await fs.readFile(output, 'utf8');
       expect(written).toContain('verdict');
       expect(written).toContain('changes_required');
+      expect(written).toContain('gitnexus_restore_source');
+      expect(written).toContain('timings_json');
       expect(written).not.toContain('private source excerpt');
     } finally {
       if (prior === undefined) delete process.env.GITHUB_OUTPUT;

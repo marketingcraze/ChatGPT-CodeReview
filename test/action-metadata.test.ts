@@ -8,16 +8,20 @@ describe('public Action contract', () => {
     'policy_path',
     'previous_review_run_path',
     'publish_review_comment',
+    'trusted_context_manifest_path',
+    'ci_evidence_path',
+    'gitnexus_binary_path',
     'gitnexus_version',
     'initial_model',
     'validation_model',
+    'context_validation_model',
     'escalation_model',
     'fail_on_verdict',
   ])('declares input %s', (input) => {
     expect(action).toMatch(new RegExp(`^  ${input}:`, 'm'));
   });
 
-  test.each(['verdict', 'reviewed_sha', 'gitnexus_status', 'findings_json', 'review_run_json'])(
+  test.each(['verdict', 'reviewed_sha', 'gitnexus_status', 'gitnexus_restore_source', 'findings_json', 'review_run_json', 'timings_json', 'model_usage_json'])(
     'declares output %s',
     (output) => expect(action).toMatch(new RegExp(`^  ${output}:`, 'm')),
   );

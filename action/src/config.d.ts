@@ -8,7 +8,11 @@ export interface ReviewConfig {
     gitnexusVersion: string;
     initialModel: string;
     validationModel: string;
+    contextValidationModel: string;
     escalationModel: string;
+    trustedContextManifestPath?: string;
+    ciEvidencePath?: string;
+    gitnexusBinaryPath?: string;
     maxPatchLength: number;
     maxContextRequests: number;
     failOnVerdict: boolean;

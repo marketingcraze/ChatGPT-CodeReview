@@ -10,7 +10,11 @@ export interface ReviewConfig {
   gitnexusVersion: string;
   initialModel: string;
   validationModel: string;
+  contextValidationModel: string;
   escalationModel: string;
+  trustedContextManifestPath?: string;
+  ciEvidencePath?: string;
+  gitnexusBinaryPath?: string;
   maxPatchLength: number;
   maxContextRequests: number;
   failOnVerdict: boolean;
@@ -61,9 +65,18 @@ export const loadReviewConfig = (): ReviewConfig => {
     initialModel:
       readInput('initial_model') || process.env.INITIAL_MODEL || 'gpt-5.6-luna',
     validationModel:
-      readInput('validation_model') || process.env.VALIDATION_MODEL || 'gpt-5.6-terra',
+      readInput('validation_model') || process.env.VALIDATION_MODEL || 'gpt-5.6-luna',
+    contextValidationModel:
+      readInput('context_validation_model') ||
+      process.env.CONTEXT_VALIDATION_MODEL ||
+      'gpt-5.6-terra',
     escalationModel:
       readInput('escalation_model') || process.env.ESCALATION_MODEL || 'gpt-5.6-sol',
+    trustedContextManifestPath:
+      readInput('trusted_context_manifest_path') || process.env.TRUSTED_CONTEXT_MANIFEST_PATH,
+    ciEvidencePath: readInput('ci_evidence_path') || process.env.CI_EVIDENCE_PATH,
+    gitnexusBinaryPath:
+      readInput('gitnexus_binary_path') || process.env.GITNEXUS_BINARY_PATH,
     maxPatchLength: readPositiveInteger(
       readInput('max_patch_length') || process.env.MAX_PATCH_LENGTH,
       30000,

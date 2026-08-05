@@ -21,8 +21,50 @@ export interface ContextRequest {
 export interface ContextBundle {
     request: ContextRequest;
     repositorySha: string;
-    provider: 'gitnexus';
+    provider: 'gitnexus' | 'architecture-hub';
     content: string;
+}
+export interface StageTiming {
+    stage: string;
+    startedAt: string;
+    completedAt: string;
+    durationMs: number;
+}
+export interface ModelUsage {
+    model: string;
+    calls: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+}
+export interface CheckEvidence {
+    name: string;
+    status: string;
+    conclusion: string | null;
+    detailsUrl?: string;
+}
+export interface CiEvidence {
+    schemaVersion: 1;
+    repository: string;
+    headSha: string;
+    collectedAt: string;
+    checks: CheckEvidence[];
+    statuses: CheckEvidence[];
+    pending: string[];
+}
+export interface TrustedContextDocumentReceipt {
+    path: string;
+    sha256: string;
+    sourceRepository?: string;
+    sourceSha?: string;
+    generatedAt?: string;
+}
+export interface TrustedContextReceipt {
+    schemaVersion: 1;
+    repository: string;
+    commitSha: string;
+    generatedAt: string;
+    documents: TrustedContextDocumentReceipt[];
 }
 export interface Finding {
     id: string;
@@ -45,7 +87,10 @@ export interface GitNexusReceipt {
     currentCommit: string;
     incompleteReasons: string[];
     status: 'up-to-date' | 'stale' | 'unavailable';
+    restoreSource: 'exact_artifact' | 'base_cache' | 'cold';
+    incrementalUpdateAttempted: boolean;
     forcedRebuildAttempted: boolean;
+    indexManifestDigest?: string;
 }
 export interface FinalVerdict {
     status: VerdictStatus;
@@ -65,8 +110,13 @@ export interface ReviewRun {
     completedAt: string;
     initialModel: string;
     validationModel: string;
+    contextValidationModel: string;
     escalationModel: string;
     gitnexus: GitNexusReceipt;
+    trustedContext?: TrustedContextReceipt;
+    ciEvidence?: CiEvidence;
+    timings: StageTiming[];
+    modelUsage: ModelUsage[];
     contextRequests: ContextRequest[];
     findings: Finding[];
     verdict: FinalVerdict;

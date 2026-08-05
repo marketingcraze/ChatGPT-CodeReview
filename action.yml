@@ -18,6 +18,15 @@ inputs:
     description: 'Publish the managed Action review body to the pull request timeline'
     required: false
     default: 'true'
+  trusted_context_manifest_path:
+    description: 'Repository-relative trusted context manifest whose document hashes are verified before use'
+    required: false
+  ci_evidence_path:
+    description: 'Repository-relative exact-SHA GitHub Checks and Statuses evidence JSON'
+    required: false
+  gitnexus_binary_path:
+    description: 'Verified GitNexus 1.6.9 executable inside GITHUB_WORKSPACE; defaults to pinned npx compatibility mode'
+    required: false
   gitnexus_version:
     description: 'Permitted GitNexus version; only 1.6.9 is accepted by this release'
     required: false
@@ -27,7 +36,11 @@ inputs:
     required: false
     default: 'gpt-5.6-luna'
   validation_model:
-    description: 'Adversarial validation model'
+    description: 'Low-cost routine validation model'
+    required: false
+    default: 'gpt-5.6-luna'
+  context_validation_model:
+    description: 'Context or disagreement validation model'
     required: false
     default: 'gpt-5.6-terra'
   escalation_model:
@@ -57,6 +70,12 @@ outputs:
     description: 'Structured validated findings without source excerpts'
   review_run_json:
     description: 'Structured ReviewRun without policy, context payloads, or source excerpts'
+  timings_json:
+    description: 'Non-sensitive stage timing records'
+  model_usage_json:
+    description: 'Aggregate model token usage without prompts or responses'
+  gitnexus_restore_source:
+    description: 'exact_artifact, base_cache, or cold'
 runs:
   using: 'node24'
   main: 'action/index.cjs'

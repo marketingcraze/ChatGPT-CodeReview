@@ -41,7 +41,10 @@ const runGitNexus = async (
   args: string[],
   cwd: string,
   runner: CommandRunner,
-) => runner('npx', ['--yes', `gitnexus@${version}`, ...args], cwd);
+  binaryPath?: string,
+) => binaryPath
+  ? runner(binaryPath, args, cwd)
+  : runner('npx', ['--yes', `gitnexus@${version}`, ...args], cwd);
 
 interface IndexMeta {
   lastCommit?: string;
@@ -105,18 +108,22 @@ const buildReceipt = async (
   version: string,
   runner: CommandRunner,
   forcedRebuildAttempted: boolean,
+  incrementalUpdateAttempted: boolean,
+  restoreSource: GitNexusReceipt['restoreSource'],
+  binaryPath?: string,
+  indexManifestDigest?: string,
 ): Promise<GitNexusReceipt> => {
   const gitHead = await runGit(['rev-parse', 'HEAD'], cwd, runner);
   const currentCommit = gitHead.stdout.trim();
   const branchResult = await runGit(['branch', '--show-current'], cwd, runner);
   const branch = branchResult.stdout.trim() || null;
 
-  const native = await runGitNexus(version, ['status', '--json'], cwd, runner);
+  const native = await runGitNexus(version, ['status', '--json'], cwd, runner, binaryPath);
   const nativeReceipt = native.exitCode === 0 ? parseNativeReceipt(native.stdout) : null;
   const compatibilityMode = nativeReceipt ? 'native-json' : 'v1.6.9-normalized';
   const statusResult = nativeReceipt
     ? native
-    : await runGitNexus(version, ['status'], cwd, runner);
+    : await runGitNexus(version, ['status'], cwd, runner, binaryPath);
   const metas = await collectMetadata(cwd);
   const exactMeta = metas.find((meta) => meta.lastCommit === headSha);
   const incompleteReasons: string[] = [];
@@ -153,8 +160,25 @@ const buildReceipt = async (
     currentCommit,
     incompleteReasons: uniqueReasons,
     status,
+    restoreSource,
+    incrementalUpdateAttempted,
     forcedRebuildAttempted,
+    indexManifestDigest,
   };
+};
+
+const validateBinaryPath = async (binaryPath: string | undefined): Promise<string | undefined> => {
+  if (!binaryPath) return undefined;
+  const workspace = process.env.GITHUB_WORKSPACE
+    ? await fs.realpath(process.env.GITHUB_WORKSPACE)
+    : await fs.realpath(process.cwd());
+  const real = await fs.realpath(path.resolve(binaryPath));
+  const relative = path.relative(workspace, real);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('GitNexus binary must remain inside GITHUB_WORKSPACE');
+  }
+  await fs.access(real);
+  return real;
 };
 
 export const ensureGitNexusFresh = async (
@@ -163,31 +187,78 @@ export const ensureGitNexusFresh = async (
     cwd?: string;
     version?: string;
     runner?: CommandRunner;
+    binaryPath?: string;
+    restoreSource?: GitNexusReceipt['restoreSource'];
+    indexManifestDigest?: string;
   } = {},
 ): Promise<GitNexusReceipt> => {
   const cwd = options.cwd || process.cwd();
   const version = options.version || PERMITTED_GITNEXUS_VERSION;
   const runner = options.runner || defaultRunner;
+  const binaryPath = await validateBinaryPath(options.binaryPath);
+  const restoreSource = options.restoreSource || 'cold';
   if (version !== PERMITTED_GITNEXUS_VERSION) {
     throw new Error(`Unsupported GitNexus version ${version}`);
   }
 
-  let receipt = await buildReceipt(cwd, headSha, version, runner, false);
+  if (binaryPath) {
+    const versionResult = await runGitNexus(version, ['--version'], cwd, runner, binaryPath);
+    if (versionResult.exitCode !== 0 || !versionResult.stdout.includes(version)) {
+      throw new Error(`GitNexus binary is not the permitted ${version} release`);
+    }
+  }
+
+  let receipt = await buildReceipt(
+    cwd,
+    headSha,
+    version,
+    runner,
+    false,
+    false,
+    restoreSource,
+    binaryPath,
+    options.indexManifestDigest,
+  );
   if (receipt.status === 'up-to-date') return receipt;
 
-  await runGitNexus(version, ['analyze', '--force', '--index-only'], cwd, runner);
-  receipt = await buildReceipt(cwd, headSha, version, runner, true);
+  await runGitNexus(version, ['analyze', '--index-only'], cwd, runner, binaryPath);
+  receipt = await buildReceipt(
+    cwd,
+    headSha,
+    version,
+    runner,
+    false,
+    true,
+    restoreSource,
+    binaryPath,
+    options.indexManifestDigest,
+  );
+  if (receipt.status === 'up-to-date') return receipt;
+
+  await runGitNexus(version, ['analyze', '--force', '--index-only'], cwd, runner, binaryPath);
+  receipt = await buildReceipt(
+    cwd,
+    headSha,
+    version,
+    runner,
+    true,
+    true,
+    restoreSource,
+    binaryPath,
+    options.indexManifestDigest,
+  );
   return receipt;
 };
 
 export const requestGitNexusContext = async (
   request: ContextRequest,
   headSha: string,
-  options: { cwd?: string; version?: string; runner?: CommandRunner } = {},
+  options: { cwd?: string; version?: string; runner?: CommandRunner; binaryPath?: string } = {},
 ): Promise<ContextBundle> => {
   const cwd = options.cwd || process.cwd();
   const version = options.version || PERMITTED_GITNEXUS_VERSION;
   const runner = options.runner || defaultRunner;
+  const binaryPath = await validateBinaryPath(options.binaryPath);
   const result = await runGitNexus(
     version,
     [
@@ -201,6 +272,7 @@ export const requestGitNexusContext = async (
     ],
     cwd,
     runner,
+    binaryPath,
   );
   if (result.exitCode !== 0 || !result.stdout.trim()) {
     throw new Error('GitNexus targeted context request failed');

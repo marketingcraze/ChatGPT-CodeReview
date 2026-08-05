@@ -1,4 +1,4 @@
-import { ContextBundle, ContextRequest, PreviousReviewContext, ReviewFile, ReviewRun } from './contracts.js';
+import { ContextBundle, ContextRequest, CiEvidence, PreviousReviewContext, ReviewFile, ReviewRun, StageTiming, TrustedContextReceipt } from './contracts.js';
 import { ReviewConfig } from './config.js';
 export interface JsonModelClient {
     completeJson<T>(options: {
@@ -6,6 +6,7 @@ export interface JsonModelClient {
         system: string;
         prompt: string;
     }): Promise<T>;
+    getUsage?: () => ReviewRun['modelUsage'];
 }
 export interface ReviewEngineInput {
     repository: string;
@@ -19,6 +20,12 @@ export interface ReviewEngineInput {
     gitnexus: ReviewRun['gitnexus'];
     model: JsonModelClient;
     previous: PreviousReviewContext;
+    trustedContext?: {
+        receipt: TrustedContextReceipt;
+        content: string;
+    };
+    ciEvidence?: CiEvidence;
+    timings?: StageTiming[];
     requestContext: (request: ContextRequest) => Promise<ContextBundle>;
     now?: () => Date;
 }

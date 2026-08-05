@@ -1,7 +1,9 @@
+import { ModelUsage } from './contracts.js';
 export declare class Chat {
     private openai;
     private isAzure;
     private isGithubModels;
+    private usage;
     private reasoningModels;
     private reasoningPrefixes;
     constructor(apikey: string);
@@ -14,6 +16,7 @@ export declare class Chat {
         system: string;
         prompt: string;
     }) => Promise<T>;
+    getUsage: () => ModelUsage[];
     private generatePrompt;
     codeReview: (patch: string) => Promise<Array<{
         lgtm: boolean;

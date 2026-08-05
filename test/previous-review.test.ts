@@ -16,7 +16,8 @@ const run: ReviewRun = {
   startedAt: '2026-08-04T10:00:00.000Z',
   completedAt: '2026-08-04T10:01:00.000Z',
   initialModel: 'gpt-5.6-luna',
-  validationModel: 'gpt-5.6-terra',
+  validationModel: 'gpt-5.6-luna',
+  contextValidationModel: 'gpt-5.6-terra',
   escalationModel: 'gpt-5.6-sol',
   gitnexus: {
     schemaVersion: 1,
@@ -28,8 +29,12 @@ const run: ReviewRun = {
     currentCommit: sha,
     incompleteReasons: [],
     status: 'up-to-date',
+    restoreSource: 'exact_artifact',
+    incrementalUpdateAttempted: false,
     forcedRebuildAttempted: false,
   },
+  timings: [],
+  modelUsage: [],
   contextRequests: [],
   findings: [],
   verdict: {

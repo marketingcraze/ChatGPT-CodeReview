@@ -41,7 +41,9 @@ The public fork contains only generic review rules. Put organization-specific po
 
 Callers that publish one trusted final summary can set `publish_review_comment: false` in both stages. Persist the initial `review_run_json` output as a private GitHub Actions artifact named for the pull request and exact head SHA, download that exact artifact during the final run, and pass its repository-relative location through `previous_review_run_path`. A missing, malformed, mismatched, or workspace-external artifact is rejected, so final review fails closed instead of approving without its initial evidence.
 
-GitNexus is pinned to `1.6.9`. That release exposes human-readable `status` but does not implement the later `status --json` receipt. The Action attempts the JSON command, recognizes only that known compatibility case, reads the full SHA from `.gitnexus/gitnexus.json`, verifies local `HEAD` against the PR head, rejects incomplete metadata, and permits one `analyze --force --index-only` rebuild. A stale result always returns `insufficient_evidence`.
+GitNexus is pinned to `1.6.9`. The Action accepts a caller-prepared binary through `gitnexus_binary_path`, verifies that it is inside `GITHUB_WORKSPACE` and reports the permitted version, then attempts native `status --json`. For the known 1.6.9 compatibility case it normalizes human status plus the full metadata SHA. A stale seed receives one incremental update followed by at most one forced rebuild; a stale result always returns `insufficient_evidence`.
+
+GitHub-only callers may supply a hash-verified Architecture Hub manifest through `trusted_context_manifest_path` and exact-SHA GitHub Checks/Statuses through `ci_evidence_path`. The documents and CI records are untrusted model data and are never emitted in public Action outputs. Routine validation stays on Luna; `context_validation_model` is used only for targeted context or material disagreement, and Sol remains limited to unresolved high/critical findings.
 
 ### Initial review
 
@@ -73,6 +75,9 @@ jobs:
           review_mode: initial
           policy_path: .github/ai-review-policy.yml
           publish_review_comment: false
+          trusted_context_manifest_path: .trusted-context/context-manifest.json
+          ci_evidence_path: .trusted-context/ci-evidence.json
+          gitnexus_binary_path: ${{ github.workspace }}/.trusted-gitnexus/node_modules/.bin/gitnexus
           gitnexus_version: 1.6.9
           fail_on_verdict: false
         env:
@@ -112,6 +117,9 @@ jobs:
           policy_path: .github/ai-review-policy.yml
           previous_review_run_path: .trusted-state/initial-review.json
           publish_review_comment: false
+          trusted_context_manifest_path: .trusted-context/context-manifest.json
+          ci_evidence_path: .trusted-context/ci-evidence.json
+          gitnexus_binary_path: ${{ github.workspace }}/.trusted-gitnexus/node_modules/.bin/gitnexus
           gitnexus_version: 1.6.9
           fail_on_verdict: false
         env:
@@ -119,7 +127,7 @@ jobs:
           USE_GITHUB_MODELS: true
 ```
 
-The Action exposes `verdict`, `reviewed_sha`, `gitnexus_status`, `findings_json`, and `review_run_json`. When Action publication is suppressed, the caller owns the sole final comment and label update. Enforcement can set `fail_on_verdict: true` only after the documented 20-PR/14-day pilot. `approved_to_merge`, `changes_required`, and `insufficient_evidence` are the only verdicts.
+The Action exposes `verdict`, `reviewed_sha`, `gitnexus_status`, `gitnexus_restore_source`, `findings_json`, `review_run_json`, `timings_json`, and `model_usage_json`. When Action publication is suppressed, the caller owns the sole final comment and label update. Enforcement can set `fail_on_verdict: true` only after the documented 20-PR/14-day pilot. `approved_to_merge`, `changes_required`, and `insufficient_evidence` are the only verdicts.
 
 ### Maintenance
 
