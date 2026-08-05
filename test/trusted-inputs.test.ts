@@ -53,6 +53,8 @@ describe('GitHub-only trusted inputs', () => {
       checks: [{ name: 'preview', status: 'completed', conclusion: 'success' }],
       statuses: [],
       pending: [],
+      failed: [],
+      missing: [],
     };
     await fs.writeFile(path.join(root, 'ci.json'), JSON.stringify(evidence));
     await expect(

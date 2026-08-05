@@ -167,6 +167,8 @@ describe('staged evidence review', () => {
         checks: [],
         statuses: [],
         pending: [],
+        failed: [],
+        missing: [],
       },
       model: client([
         { findings: [finding] },
@@ -213,6 +215,32 @@ describe('staged evidence review', () => {
         checks: [],
         statuses: [],
         pending: ['preview_deploy (20.x)'],
+        failed: [],
+        missing: [],
+      },
+      model,
+    });
+    expect(result.verdict.status).toBe('insufficient_evidence');
+    expect(model.completeJson).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['failed', { pending: [], failed: ['preview_deploy (20.x)'], missing: [] }],
+    ['missing', { pending: [], failed: [], missing: ['preview_deploy (20.x)'] }],
+  ])('final review fails closed when required CI is %s', async (_state, ciState) => {
+    const previousRun = (await run()) as ReviewRun;
+    const model = client([{ findings: [] }]);
+    const result = await run({
+      config: { ...config, mode: 'final' },
+      previous: { run: previousRun, developerComments: [] },
+      ciEvidence: {
+        schemaVersion: 1,
+        repository: 'marketingcraze/example',
+        headSha: head,
+        collectedAt: new Date().toISOString(),
+        checks: [],
+        statuses: [],
+        ...ciState,
       },
       model,
     });

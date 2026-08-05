@@ -69,6 +69,8 @@ export interface CiEvidence {
   checks: CheckEvidence[];
   statuses: CheckEvidence[];
   pending: string[];
+  failed: string[];
+  missing: string[];
 }
 
 export interface TrustedContextDocumentReceipt {

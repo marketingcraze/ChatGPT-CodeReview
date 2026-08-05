@@ -91,6 +91,8 @@ export const loadCiEvidence = async (
   assert(Array.isArray(parsed.checks) && parsed.checks.length <= 500, 'CI checks are invalid');
   assert(Array.isArray(parsed.statuses) && parsed.statuses.length <= 500, 'CI statuses are invalid');
   assert(Array.isArray(parsed.pending) && parsed.pending.every((name) => typeof name === 'string'), 'CI pending list is invalid');
+  assert(Array.isArray(parsed.failed) && parsed.failed.every((name) => typeof name === 'string'), 'CI failed list is invalid');
+  assert(Array.isArray(parsed.missing) && parsed.missing.every((name) => typeof name === 'string'), 'CI missing list is invalid');
   for (const check of [...parsed.checks, ...parsed.statuses]) {
     assert(typeof check.name === 'string' && check.name.length <= 300, 'CI check name is invalid');
     assert(typeof check.status === 'string' && check.status.length <= 100, 'CI check status is invalid');

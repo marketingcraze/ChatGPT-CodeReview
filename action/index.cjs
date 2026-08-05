@@ -148334,6 +148334,12 @@ const runEvidenceReview = async (input) => {
     if (input.config.mode === 'final' && input.ciEvidence?.pending.length) {
         baseGaps.push(`Exact-SHA CI checks are still pending: ${input.ciEvidence.pending.join(', ')}`);
     }
+    if (input.config.mode === 'final' && input.ciEvidence?.failed.length) {
+        baseGaps.push(`Exact-SHA CI checks failed: ${input.ciEvidence.failed.join(', ')}`);
+    }
+    if (input.config.mode === 'final' && input.ciEvidence?.missing.length) {
+        baseGaps.push(`Required exact-SHA CI checks are missing: ${input.ciEvidence.missing.join(', ')}`);
+    }
     if (!input.files.length)
         baseGaps.push('No reviewable changed file evidence was available.');
     if (baseGaps.length) {
@@ -148559,6 +148565,8 @@ const loadCiEvidence = async (evidencePath, expected, cwd = process.cwd()) => {
     assert(Array.isArray(parsed.checks) && parsed.checks.length <= 500, 'CI checks are invalid');
     assert(Array.isArray(parsed.statuses) && parsed.statuses.length <= 500, 'CI statuses are invalid');
     assert(Array.isArray(parsed.pending) && parsed.pending.every((name) => typeof name === 'string'), 'CI pending list is invalid');
+    assert(Array.isArray(parsed.failed) && parsed.failed.every((name) => typeof name === 'string'), 'CI failed list is invalid');
+    assert(Array.isArray(parsed.missing) && parsed.missing.every((name) => typeof name === 'string'), 'CI missing list is invalid');
     for (const check of [...parsed.checks, ...parsed.statuses]) {
         assert(typeof check.name === 'string' && check.name.length <= 300, 'CI check name is invalid');
         assert(typeof check.status === 'string' && check.status.length <= 100, 'CI check status is invalid');

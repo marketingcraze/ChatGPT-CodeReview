@@ -246,6 +246,12 @@ export const runEvidenceReview = async (input: ReviewEngineInput): Promise<Revie
   if (input.config.mode === 'final' && input.ciEvidence?.pending.length) {
     baseGaps.push(`Exact-SHA CI checks are still pending: ${input.ciEvidence.pending.join(', ')}`);
   }
+  if (input.config.mode === 'final' && input.ciEvidence?.failed.length) {
+    baseGaps.push(`Exact-SHA CI checks failed: ${input.ciEvidence.failed.join(', ')}`);
+  }
+  if (input.config.mode === 'final' && input.ciEvidence?.missing.length) {
+    baseGaps.push(`Required exact-SHA CI checks are missing: ${input.ciEvidence.missing.join(', ')}`);
+  }
   if (!input.files.length) baseGaps.push('No reviewable changed file evidence was available.');
   if (baseGaps.length) {
     return emptyRun(input, startedAt, now().toISOString(), baseGaps);
