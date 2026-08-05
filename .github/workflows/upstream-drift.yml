@@ -1,0 +1,51 @@
+name: Report upstream drift
+
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - id: drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          recorded=$(sed -n 's/^upstream_base_sha: //p' UPSTREAM_MAINTENANCE.md)
+          live=$(git ls-remote https://github.com/anc95/ChatGPT-CodeReview.git refs/heads/main | cut -f1)
+          echo "recorded=$recorded" >> "$GITHUB_OUTPUT"
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+          if [ "$recorded" = "$live" ]; then echo "drift=false" >> "$GITHUB_OUTPUT"; else echo "drift=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        if: steps.drift.outputs.drift == 'true'
+        with:
+          script: |
+            const title = 'Upstream drift: anc95/ChatGPT-CodeReview';
+            const body = [
+              'The daily comparison found new upstream state. No commits were merged automatically.',
+              '',
+              `- Recorded upstream SHA: \`${{ steps.drift.outputs.recorded }}\``,
+              `- Live upstream SHA: \`${{ steps.drift.outputs.live }}\``,
+              '',
+              'Create a reviewed `maintenance/upstream-<version>` branch and follow `UPSTREAM_MAINTENANCE.md`.',
+            ].join('\n');
+            const { data } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              labels: 'upstream-drift',
+              per_page: 100,
+            });
+            const existing = data.find(issue => issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({ ...context.repo, issue_number: existing.number, body });
+            } else {
+              try { await github.rest.issues.createLabel({ ...context.repo, name: 'upstream-drift', color: 'B60205' }); } catch (_) {}
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ['upstream-drift'] });
+            }

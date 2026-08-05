@@ -1,0 +1,20 @@
+import { ReviewMode } from './contracts.js';
+export declare const PERMITTED_GITNEXUS_VERSION = "1.6.9";
+export interface ReviewConfig {
+    mode: ReviewMode;
+    policyPath?: string;
+    previousReviewRunPath?: string;
+    publishReviewComment: boolean;
+    gitnexusVersion: string;
+    initialModel: string;
+    validationModel: string;
+    contextValidationModel: string;
+    escalationModel: string;
+    trustedContextManifestPath?: string;
+    ciEvidencePath?: string;
+    gitnexusBinaryPath?: string;
+    maxPatchLength: number;
+    maxContextRequests: number;
+    failOnVerdict: boolean;
+}
+export declare const loadReviewConfig: () => ReviewConfig;

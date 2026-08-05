@@ -15,7 +15,11 @@
   ],
   "scripts": {
     "start": "node -r dotenv/config ./dist/index.js",
-    "test": "jest",
+    "test": "jest --runInBand",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit",
+    "lint": "tsc -p tsconfig.check.json --noEmit",
+    "check:guide": "node scripts/check-upstream-guide.mjs",
+    "check:upstream": "node scripts/check-upstream-freshness.mjs",
     "build": "rm -rf dist && rollup -c rollup.config.ts --configPlugin @rollup/plugin-typescript && ncc build src/github-action.cjs -o action",
     "build:lambda": "ncc build src/aws-lambda.cjs -o lambda"
   },
@@ -52,5 +56,6 @@
   },
   "engines": {
     "node": ">= 18"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

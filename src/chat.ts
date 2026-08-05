@@ -1,4 +1,5 @@
 import { OpenAI, AzureOpenAI } from 'openai';
+import { ModelUsage } from './contracts.js';
 
 const reasoningEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
 
@@ -11,6 +12,7 @@ export class Chat {
   private openai: OpenAI | AzureOpenAI;
   private isAzure: boolean;
   private isGithubModels: boolean;
+  private usage = new Map<string, ModelUsage>();
 
   private reasoningModels = ['o1', 'o1-2024-12-17', 'o1-mini', 'o1-mini-2024-09-12'];
   private reasoningPrefixes = ['o3', 'o4', 'gpt-5'];
@@ -61,6 +63,61 @@ export class Chat {
     }
     return { reasoning_effort: effort };
   }
+
+  public completeJson = async <T>(options: {
+    model: string;
+    system: string;
+    prompt: string;
+  }): Promise<T> => {
+    const normalizedModel = options.model.split('/').pop()?.toLowerCase() || options.model;
+    const isReasoning =
+      this.reasoningModels.includes(normalizedModel) ||
+      this.reasoningPrefixes.some((prefix) => normalizedModel.startsWith(prefix));
+    const reasoningEffort = process.env.REASONING_EFFORT;
+    const reasoningOption =
+      reasoningEffort && isReasoning && isReasoningEffort(reasoningEffort)
+        ? { reasoning_effort: reasoningEffort }
+        : {};
+
+    const res = await this.openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: options.system },
+        { role: 'user', content: options.prompt },
+      ],
+      model: options.model,
+      ...(isReasoning
+        ? {}
+        : {
+            temperature: +(process.env.temperature || 0) || 0.2,
+            top_p: +(process.env.top_p || 0) || 1,
+          }),
+      max_tokens: process.env.max_tokens ? +process.env.max_tokens : undefined,
+      ...reasoningOption,
+      response_format: { type: 'json_object' },
+    });
+    const current = this.usage.get(options.model) || {
+      model: options.model,
+      calls: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    };
+    current.calls += 1;
+    current.inputTokens += res.usage?.prompt_tokens || 0;
+    current.outputTokens += res.usage?.completion_tokens || 0;
+    current.totalTokens += res.usage?.total_tokens || 0;
+    this.usage.set(options.model, current);
+    const content = res.choices[0]?.message.content;
+    if (!content) throw new Error('Model returned no JSON content');
+    try {
+      return JSON.parse(content) as T;
+    } catch {
+      throw new Error('Model returned invalid JSON content');
+    }
+  };
+
+  public getUsage = (): ModelUsage[] =>
+    Array.from(this.usage.values()).map((usage) => ({ ...usage }));
 
   private generatePrompt = (patch: string) => {
     const answerLanguage = process.env.LANGUAGE

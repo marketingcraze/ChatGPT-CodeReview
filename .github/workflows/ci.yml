@@ -1,0 +1,57 @@
+name: Managed fork CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feature/**', 'maintenance/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-guide:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run check:guide
+        env:
+          GUIDE_BASE_REF: origin/main
+      - run: npm run build
+      - name: Verify packaged Action matches source
+        run: git diff --exit-code -- action/index.cjs action/package.json
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Scan repository history for secrets
+        run: >-
+          docker run --rm
+          -v "$GITHUB_WORKSPACE:/repo"
+          ghcr.io/gitleaks/gitleaks:v8.30.1
+          git --redact --no-banner --log-opts="origin/main..HEAD" /repo
+
+  upstream-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: npm run check:upstream
