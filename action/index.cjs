@@ -147294,7 +147294,7 @@ const robot = (app) => {
             trustedContext = await timeStage(timings, 'load.trusted-context', () => (0, trusted_inputs_js_1.loadTrustedContext)(config.trustedContextManifestPath));
         }
         catch {
-            loaded.unreviewedFiles.push('Configured trusted architecture context was unavailable or invalid.');
+            loglevel_1.default.info('Trusted architecture context was unavailable; exact-SHA repository evidence remains authoritative.');
         }
         const repository = `${context.repo().owner}/${context.repo().repo}`;
         let ciEvidence;

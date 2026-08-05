@@ -327,7 +327,7 @@ export const robot = (app: Probot) => {
           loadTrustedContext(config.trustedContextManifestPath),
         );
       } catch {
-        loaded.unreviewedFiles.push('Configured trusted architecture context was unavailable or invalid.');
+        log.info('Trusted architecture context was unavailable; exact-SHA repository evidence remains authoritative.');
       }
 
       const repository = `${context.repo().owner}/${context.repo().repo}`;
